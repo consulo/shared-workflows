@@ -1,0 +1,105 @@
+name: Claude PR Review (reusable)
+
+# Reusable workflow. Consumers trigger on issue_comment /
+# pull_request_review_comment and call this via `uses:`. A called workflow
+# inherits the caller's github.event, so the comment payload is available here.
+on:
+  workflow_call:
+    inputs:
+      authorized_users:
+        description: 'GitHub logins allowed to trigger reviews (case-insensitive, separated by space/comma/newline)'
+        type: string
+        default: vistall unv-unv
+      model:
+        description: 'Claude model'
+        type: string
+        default: claude-opus-4-8
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+
+jobs:
+  # Gate everything behind an author check so only the authorized user can spend
+  # tokens / trigger Claude. Comparison is case-insensitive.
+  authorize:
+    if: |
+      (github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment') &&
+      contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+    steps:
+      - id: check
+        env:
+          # Passed via env to avoid script injection from the comment payload.
+          LOGIN: ${{ github.event.comment.user.login }}
+          ALLOWED: ${{ inputs.authorized_users }}
+        run: |
+          login_lc="${LOGIN,,}"
+          ok=false
+          # Accept space-, comma- or newline-separated lists.
+          for u in $(printf '%s' "$ALLOWED" | tr ',\n' '  '); do
+            if [ "${u,,}" = "$login_lc" ]; then
+              ok=true
+              break
+            fi
+          done
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          [ "$ok" = "true" ] || echo "Ignoring @claude from '$LOGIN' (authorized: $ALLOWED)."
+
+  review:
+    needs: authorize
+    if: needs.authorize.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      # In tag mode (forced by track_progress below) claude-code-action checks
+      # out the PR branch itself — including fork PRs via refs/pull/N/head — so we
+      # only provide a base checkout for it to operate in. Do NOT add a manual
+      # `gh pr checkout` here: it leaves HEAD on the PR branch and the action's
+      # own `git fetch … pull/N/head:<branch>` then fails with "refusing to fetch
+      # into branch checked out".
+      - name: Checkout base
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_MODEL: ${{ inputs.model }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Auto-install the shared Consulo skills as a plugin marketplace.
+          plugin_marketplaces: |
+            https://github.com/consulo/claude-skills.git
+          plugins: |
+            consulo-skills@consulo
+          # Post one tracking comment at start and keep editing it in place with a
+          # live checklist as each step completes. Forces tag mode even though we
+          # pass a custom prompt below.
+          track_progress: true
+          # The full comment is forwarded verbatim as the instruction. Only the
+          # authorized user can reach this point, so the trusted-input assumption holds.
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+
+            The maintainer left this comment on the PR — follow it exactly:
+            ---
+            ${{ github.event.comment.body }}
+            ---
+
+            The working tree is checked out at the PR head.
+
+            If the comment asks to "review with inline comments" (or otherwise
+            requests inline feedback), create inline review comments on the
+            specific lines and express each actionable change as a GitHub
+            ```suggestion block so the author can apply it with one click. Use
+            `gh api` against the PR review-comments endpoint to attach a comment
+            to a file + line, with the body containing the suggestion block.
+
+            Otherwise, post your response as a single PR comment with
+            `gh pr comment`.
+          claude_args: |
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Read,Grep,Glob"
