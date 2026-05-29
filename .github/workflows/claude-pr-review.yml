@@ -15,7 +15,7 @@ on:
         type: string
         default: claude-opus-4-8
     secrets:
-      ANTHROPIC_API_KEY:
+      CLAUDE_CODE_OAUTH_TOKEN:
         required: true
 
 jobs:
@@ -68,7 +68,7 @@ jobs:
         env:
           ANTHROPIC_MODEL: ${{ inputs.model }}
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # The action otherwise requires the commenter to have *write* access.
           # Our authorize job already gates this run to inputs.authorized_users
