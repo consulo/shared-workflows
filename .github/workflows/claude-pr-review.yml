@@ -70,6 +70,11 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # The action otherwise requires the commenter to have *write* access.
+          # Our authorize job already gates this run to inputs.authorized_users
+          # before we get here, so '*' just defers to that allowlist and lets
+          # read-only collaborators (who are on the allowlist) trigger reviews.
+          allowed_non_write_users: '*'
           # Auto-install the shared Consulo skills as a plugin marketplace.
           plugin_marketplaces: |
             https://github.com/consulo/claude-skills.git
