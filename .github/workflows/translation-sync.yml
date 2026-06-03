@@ -1,0 +1,72 @@
+name: Translation Sync (reusable)
+
+# Reusable workflow for Consulo translation plugins. Pulls the latest
+# translations from the Consulo Verbaria server into the repo (using the
+# committed verbaria.json), turns the verbaria-lock.json diff into a commit
+# message + changelog, and opens a PR when something changed.
+#
+# Consumers only need:
+#   jobs:
+#     sync:
+#       uses: consulo/shared-workflows/.github/workflows/translation-sync.yml@master
+#       secrets: inherit
+#
+# Credentials come from the caller org/repo:
+#   - secret VERBARIA_API_KEY  (required, via `secrets: inherit`)
+#   - variable VERBARIA_USERNAME (or pass the `username` input)
+#
+# A sibling `source-sync.yml` will later cover the source-string push.
+on:
+  workflow_call:
+    inputs:
+      server-url:
+        description: 'Verbaria server URL.'
+        type: string
+        default: 'https://i.verbaria.org/'
+      username:
+        description: 'Verbaria username (falls back to the VERBARIA_USERNAME variable).'
+        type: string
+        default: ''
+      pull-type:
+        description: 'What to pull: trans, source or both.'
+        type: string
+        default: 'trans'
+      client-version:
+        description: "Verbaria CLI release tag to use, or 'latest'."
+        type: string
+        default: 'latest'
+      base-branch:
+        description: 'Base branch for the PR (defaults to the repository default branch).'
+        type: string
+        default: ''
+      runs-on:
+        description: 'Runner label.'
+        type: string
+        default: 'ubuntu-latest'
+    secrets:
+      VERBARIA_API_KEY:
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ${{ inputs.runs-on }}
+    concurrency:
+      group: verbaria-translation-sync-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Sync translations
+        uses: verbaria/translate-sync@master
+        with:
+          server-url: ${{ inputs.server-url }}
+          username: ${{ inputs.username || vars.VERBARIA_USERNAME }}
+          api-key: ${{ secrets.VERBARIA_API_KEY }}
+          pull-type: ${{ inputs.pull-type }}
+          client-version: ${{ inputs.client-version }}
+          base-branch: ${{ inputs.base-branch }}
