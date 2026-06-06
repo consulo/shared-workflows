@@ -1,0 +1,14 @@
+name: Translation sync
+
+on:
+    schedule:
+        -   cron: '0 6 * * *'
+    workflow_dispatch: {}
+
+jobs:
+    sync:
+        permissions:
+            contents: write
+            pull-requests: write
+        uses: consulo/shared-workflows/.github/workflows/translation-sync.yml@master
+        secrets: inherit

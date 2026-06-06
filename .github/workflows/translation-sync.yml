@@ -17,56 +17,56 @@ name: Translation Sync (reusable)
 #
 # A sibling `source-sync.yml` will later cover the source-string push.
 on:
-  workflow_call:
-    inputs:
-      server-url:
-        description: 'Verbaria server URL.'
-        type: string
-        default: 'https://i.verbaria.org/'
-      username:
-        description: 'Verbaria username (falls back to the VERBARIA_USERNAME variable).'
-        type: string
-        default: ''
-      pull-type:
-        description: 'What to pull: trans, source or both.'
-        type: string
-        default: 'trans'
-      client-version:
-        description: "Verbaria CLI release tag to use, or 'latest'."
-        type: string
-        default: 'latest'
-      base-branch:
-        description: 'Base branch for the PR (defaults to the repository default branch).'
-        type: string
-        default: ''
-      runs-on:
-        description: 'Runner label.'
-        type: string
-        default: 'ubuntu-latest'
-    secrets:
-      VERBARIA_API_KEY:
-        required: true
+    workflow_call:
+        inputs:
+            server-url:
+                description: 'Verbaria server URL.'
+                type: string
+                default: 'https://i.verbaria.org/'
+            username:
+                description: 'Verbaria username (falls back to the VERBARIA_USERNAME variable).'
+                type: string
+                default: ''
+            pull-type:
+                description: 'What to pull: trans, source or both.'
+                type: string
+                default: 'trans'
+            client-version:
+                description: "Verbaria CLI release tag to use, or 'latest'."
+                type: string
+                default: 'latest'
+            base-branch:
+                description: 'Base branch for the PR (defaults to the repository default branch).'
+                type: string
+                default: ''
+            runs-on:
+                description: 'Runner label.'
+                type: string
+                default: 'ubuntu-latest'
+        secrets:
+            VERBARIA_API_KEY:
+                required: true
 
 permissions:
-  contents: write
-  pull-requests: write
+    contents: write
+    pull-requests: write
 
 jobs:
-  sync:
-    runs-on: ${{ inputs.runs-on }}
-    concurrency:
-      group: verbaria-translation-sync-${{ github.repository }}
-      cancel-in-progress: false
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+    sync:
+        runs-on: ${{ inputs.runs-on }}
+        concurrency:
+            group: verbaria-translation-sync-${{ github.repository }}
+            cancel-in-progress: false
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v5
 
-      - name: Sync translations
-        uses: verbaria/translate-sync@master
-        with:
-          server-url: ${{ inputs.server-url }}
-          username: ${{ inputs.username || vars.VERBARIA_USERNAME }}
-          api-key: ${{ secrets.VERBARIA_API_KEY }}
-          pull-type: ${{ inputs.pull-type }}
-          client-version: ${{ inputs.client-version }}
-          base-branch: ${{ inputs.base-branch }}
+            -   name: Sync translations
+                uses: verbaria/translate-sync@master
+                with:
+                    server-url: ${{ inputs.server-url }}
+                    username: ${{ inputs.username || vars.VERBARIA_USERNAME }}
+                    api-key: ${{ secrets.VERBARIA_API_KEY }}
+                    pull-type: ${{ inputs.pull-type }}
+                    client-version: ${{ inputs.client-version }}
+                    base-branch: ${{ inputs.base-branch }}

@@ -1,0 +1,50 @@
+name: Build Plugin (reusable)
+
+# Reusable Maven build for Consulo plugin repositories. Sets up the JDK and runs
+# a `clean package` with the shared build flags.
+#
+# Consumers only need:
+#   jobs:
+#     build:
+#       uses: consulo/shared-workflows/.github/workflows/build-plugin.yml@master
+on:
+    workflow_call:
+        inputs:
+            java-version:
+                description: 'JDK version to build with.'
+                type: string
+                default: '21'
+            java-distribution:
+                description: 'JDK distribution for actions/setup-java.'
+                type: string
+                default: 'temurin'
+            build-number:
+                description: 'Value exposed as the BUILD_NUMBER env var.'
+                type: string
+                default: '999999'
+            maven-args:
+                description: 'Arguments passed to mvn.'
+                type: string
+                default: '-U -T 1C -Dmaven.javadoc.skip=true -B -V clean package'
+            runs-on:
+                description: 'Runner label.'
+                type: string
+                default: 'ubuntu-latest'
+
+jobs:
+    build:
+        runs-on: ${{ inputs.runs-on }}
+        env:
+            BUILD_NUMBER: ${{ inputs.build-number }}
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v5
+
+            -   name: Set up JDK ${{ inputs.java-version }}
+                uses: actions/setup-java@v4
+                with:
+                    distribution: ${{ inputs.java-distribution }}
+                    java-version: ${{ inputs.java-version }}
+
+            -   name: Build with Maven
+                run: mvn ${{ inputs.maven-args }}
