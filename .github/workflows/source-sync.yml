@@ -1,0 +1,71 @@
+name: Source Sync (reusable)
+
+# Reusable workflow for Consulo translation plugins. Pushes the repo's source
+# locale to the Consulo Verbaria server (using the committed verbaria.json),
+# turns the verbaria-lock.json diff into a commit message + changelog, and opens
+# a PR when the source (and thus the lock) changed. The push counterpart of
+# translation-sync.yml.
+#
+# Consumers only need:
+#   jobs:
+#     sync:
+#       uses: consulo/shared-workflows/.github/workflows/source-sync.yml@master
+#       secrets: inherit
+#
+# Credentials come from the caller org/repo:
+#   - secret VERBARIA_API_KEY  (required, via `secrets: inherit`)
+#   - variable VERBARIA_USERNAME (or pass the `username` input)
+on:
+    workflow_call:
+        inputs:
+            server-url:
+                description: 'Verbaria server URL.'
+                type: string
+                default: 'https://i.verbaria.org/'
+            username:
+                description: 'Verbaria username (falls back to the VERBARIA_USERNAME variable).'
+                type: string
+                default: ''
+            push-type:
+                description: 'What to push: source or both.'
+                type: string
+                default: 'source'
+            client-version:
+                description: "Verbaria CLI release tag to use, or 'latest'."
+                type: string
+                default: 'latest'
+            base-branch:
+                description: 'Base branch for the PR (defaults to the repository default branch).'
+                type: string
+                default: ''
+            runs-on:
+                description: 'Runner label.'
+                type: string
+                default: 'ubuntu-latest'
+        secrets:
+            VERBARIA_API_KEY:
+                required: true
+
+permissions:
+    contents: write
+    pull-requests: write
+
+jobs:
+    sync:
+        runs-on: ${{ inputs.runs-on }}
+        concurrency:
+            group: verbaria-source-sync-${{ github.repository }}
+            cancel-in-progress: false
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v5
+
+            -   name: Sync source
+                uses: verbaria/source-sync@master
+                with:
+                    server-url: ${{ inputs.server-url }}
+                    username: ${{ inputs.username || vars.VERBARIA_USERNAME }}
+                    api-key: ${{ secrets.VERBARIA_API_KEY }}
+                    push-type: ${{ inputs.push-type }}
+                    client-version: ${{ inputs.client-version }}
+                    base-branch: ${{ inputs.base-branch }}
