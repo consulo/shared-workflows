@@ -69,3 +69,4 @@ jobs:
                     push-type: ${{ inputs.push-type }}
                     client-version: ${{ inputs.client-version }}
                     base-branch: ${{ inputs.base-branch }}
+                    pr-labels: "translations"
