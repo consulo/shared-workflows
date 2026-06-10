@@ -53,6 +53,7 @@ permissions:
 
 jobs:
     sync:
+        if: ${{ github.repository_owner == 'consulo' }}
         runs-on: ${{ inputs.runs-on }}
         concurrency:
             group: verbaria-translation-sync-${{ github.repository }}

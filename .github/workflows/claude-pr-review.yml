@@ -23,6 +23,7 @@ jobs:
     # tokens / trigger Claude. Comparison is case-insensitive.
     authorize:
         if: |
+            github.repository_owner == 'consulo' &&
             (github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment') &&
             contains(github.event.comment.body, '@claude')
         runs-on: ubuntu-latest
