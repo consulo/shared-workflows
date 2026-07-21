@@ -64,10 +64,20 @@ jobs:
                 with:
                     fetch-depth: 0
 
+            # The action wraps every Bash subprocess in a bwrap sandbox that creates
+            # "$HOME/.mcp.json". On this runner HOME defaults to "/home", which the
+            # runner user cannot write to, so bwrap fails with
+            # "Can't create file at /home/.mcp.json: Permission denied" and EVERY
+            # shell command (including the `gh api` calls that post inline review
+            # comments) dies. Point HOME at a writable dir so the sandbox can set up.
+            -   name: Prepare writable HOME for sandbox
+                run: mkdir -p "${{ runner.temp }}/claude-home"
+
             -   name: Run Claude
                 uses: anthropics/claude-code-action@v1
                 env:
                     ANTHROPIC_MODEL: ${{ inputs.model }}
+                    HOME: ${{ runner.temp }}/claude-home
                 with:
                     claude_code_oauth_token: ${{ secrets.ANTHROPIC_API_KEY }}
                     github_token: ${{ secrets.GITHUB_TOKEN }}
