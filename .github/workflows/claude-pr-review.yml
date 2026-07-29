@@ -22,9 +22,17 @@ jobs:
     # Gate everything behind an author check so only the authorized user can spend
     # tokens / trigger Claude. Comparison is case-insensitive.
     authorize:
+        # Order matters: a pull_request_review_comment payload has NO `github.event.issue`,
+        # so `github.event.issue.pull_request` must be guarded by an event-name check that
+        # is evaluated FIRST. Putting the issue_comment branch first made the job fail at
+        # init on inline-thread replies (authorize errored before any step ran, so the run
+        # died silently and nothing was ever posted back).
         if: |
             github.repository_owner == 'consulo' &&
-            (github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment') &&
+            (
+              github.event_name == 'pull_request_review_comment' ||
+              (github.event_name == 'issue_comment' && github.event.issue.pull_request != null)
+            ) &&
             contains(github.event.comment.body, '@claude')
         runs-on: ubuntu-latest
         outputs:
@@ -102,7 +110,7 @@ jobs:
                     # authorized user can reach this point, so the trusted-input assumption holds.
                     prompt: |
                         REPO: ${{ github.repository }}
-                        PR NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+                        PR NUMBER: ${{ github.event_name == 'pull_request_review_comment' && github.event.pull_request.number || github.event.issue.number }}
 
                         The maintainer left this comment on the PR — follow it exactly:
                         ---
@@ -111,10 +119,37 @@ jobs:
 
                         The working tree is checked out at the PR head.
 
-                        If the comment asks to "review with inline comments" (or otherwise
-                        requests inline feedback), create inline review comments on the
-                        specific lines and express each actionable change as a GitHub
-                        ```suggestion block so the author can apply it with one click. Use
+                        INLINE THREAD CONTEXT (set only when this run was triggered from a
+                        reply inside an existing inline review comment thread — e.g. a reply
+                        on a ```suggestion block you posted earlier). Empty for top-level
+                        PR comments:
+                          FILE:         ${{ github.event.comment.path }}
+                          LINE:         ${{ github.event.comment.line }}
+                          COMMENT ID:   ${{ github.event.comment.id }}
+                          IN REPLY TO:  ${{ github.event.comment.in_reply_to_id }}
+                          DIFF HUNK:
+                          ${{ github.event.comment.diff_hunk }}
+
+                        If FILE above is non-empty, treat this as a follow-up ON that inline
+                        thread, not a new review:
+                          1. Read the whole thread so you have the full back-and-forth:
+                             `gh api repos/${{ github.repository }}/pulls/<PR NUMBER>/comments`
+                             and follow the `in_reply_to_id` chain for this thread (and the
+                             original comment you posted, which usually holds the suggestion).
+                          2. Open FILE at LINE in the checked-out tree and address exactly what
+                             the reply asks.
+                          3. Reply IN THE SAME THREAD (do NOT open a separate top-level comment):
+                             `gh api --method POST \
+                               repos/${{ github.repository }}/pulls/<PR NUMBER>/comments/${{ github.event.comment.id }}/replies \
+                               -f body='<your reply>'`
+                             If a code change is warranted, put an updated ```suggestion block
+                             in that reply body so the author can apply it in one click.
+                          Then stop — do not also run a full-PR review.
+
+                        Otherwise (FILE is empty): if the comment asks to "review with inline
+                        comments" (or otherwise requests inline feedback), create inline review
+                        comments on the specific lines and express each actionable change as a
+                        GitHub ```suggestion block so the author can apply it with one click. Use
                         `gh api` against the PR review-comments endpoint to attach a comment
                         to a file + line, with the body containing the suggestion block.
 
